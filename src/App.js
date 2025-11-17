@@ -1,9 +1,9 @@
-import ScatterWithHistogram from "./components/ScatterWithHistogram";
+import WingDiscVsD from "./components/WingDiscVsD";
 
 function App() {
   return (
     <div className="App">
-      <ScatterWithHistogram />
+      <WingDiscVsD />
     </div>
   );
 }
