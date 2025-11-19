@@ -1,56 +1,47 @@
 import * as d3 from "d3";
 import React, { useEffect, useRef, useState } from "react";
 
-// Import CSV file
-import normVgHypoNormoCSV from "../data/norm_vghypo-normo.csv";
-
 const colors = {
-  Normoxia: "#ff9900",
-  Hypoxia: "#a56cc1",
-  LowTemp: "#4ab8a1"
+  standard: "#d95f02",
+  hypoxia: "#7570b3",
+  cold: "#1b9e77"
 };
 
 export default function WingDiscVsD() {
   const svgRef = useRef();
   const [scatterData, setScatterData] = useState([]);
   const [visibleConditions, setVisibleConditions] = useState({
-    Normoxia: true,
-    Hypoxia: true
+    standard: true,
+    hypoxia: true,
+    cold: true
   });
 
-  // Load data
+  // Load data - SIMPLE AND RELIABLE
   useEffect(() => {
-    d3.csv(normVgHypoNormoCSV).then((paramsData) => {
+    d3.csv("/data/mergedNormalizedGrad.csv").then((csvData) => {
+      console.log("CSV loaded successfully!", csvData);
+      
       // Process scatter data
-      const processed = paramsData.map(d => ({
+      const processed = csvData.map(d => ({
         disc: d.disc,
-        area: +d.area,
+        area: +d.area, //log transformed already, no need to transform
         A: +d.A,
         B: +d.B,
         C: +d.C,
         D: +d.D,
-        condition: d.O2 === "normoxia" ? "Normoxia" : "Hypoxia"
+        condition: d.condition
       })).filter(d => 
         !isNaN(d.area) && !isNaN(d.D) && 
         isFinite(d.area) && isFinite(d.D)
       );
       
-      // Normalize area to 0-1
-      const areaExtent = d3.extent(processed, d => d.area);
-      const areaMin = areaExtent[0];
-      const areaMax = areaExtent[1];
-      
-      processed.forEach(d => {
-        d.normalizedArea = (d.area - areaMin) / (areaMax - areaMin);
-      });
-      
-      console.log("Processed data:", processed.slice(0, 5));
-      console.log("Area range:", areaExtent);
-      console.log("D range:", d3.extent(processed, d => d.D));
-      console.log("Normalized area range:", d3.extent(processed, d => d.normalizedArea));
-      
+      console.log("Processed data points:", processed.length);
+      console.log("Conditions found:", [...new Set(processed.map(d => d.condition))]);
       setScatterData(processed);
-    }).catch(err => console.error("Error loading data:", err));
+      
+    }).catch(err => {
+      console.error("Error loading data:", err);
+    });
   }, []);
 
   useEffect(() => {
@@ -71,51 +62,14 @@ export default function WingDiscVsD() {
     // Filter data based on visible conditions
     const filteredData = scatterData.filter(d => visibleConditions[d.condition]);
 
-    // Scales for scatter - use normalized area vs D (use all data for consistent scales)
-    const xExtent = d3.extent(scatterData, d => d.normalizedArea);
-    const yExtent = d3.extent(scatterData, d => d.D);
-    
-    console.log("X extent (normalized area):", xExtent);
-    console.log("Y extent (D):", yExtent);
-    
+    // Scales for scatter - using raw area values
     const xScale = d3.scaleLinear()
-      .domain([0, 1])
+      .domain(d3.extent(scatterData, d => d.area)).nice()
       .range([scatterMargin.left, scatterMargin.left + scatterSize]);
 
     const yScale = d3.scaleLinear()
-      .domain(yExtent).nice()
+      .domain(d3.extent(scatterData, d => d.D)).nice()
       .range([scatterMargin.top + scatterSize, scatterMargin.top]);
-
-    // Background
-    mainGroup.append("rect")
-      .attr("x", scatterMargin.left)
-      .attr("y", scatterMargin.top)
-      .attr("width", scatterSize)
-      .attr("height", scatterSize)
-      .attr("fill", "#f0f0f5");
-
-    // Grid
-    mainGroup.append("g")
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 1)
-      .selectAll("line.v")
-      .data(xScale.ticks(5))
-      .join("line")
-      .attr("x1", d => xScale(d))
-      .attr("x2", d => xScale(d))
-      .attr("y1", scatterMargin.top)
-      .attr("y2", scatterMargin.top + scatterSize);
-
-    mainGroup.append("g")
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 1)
-      .selectAll("line.h")
-      .data(yScale.ticks(5))
-      .join("line")
-      .attr("x1", scatterMargin.left)
-      .attr("x2", scatterMargin.left + scatterSize)
-      .attr("y1", d => yScale(d))
-      .attr("y2", d => yScale(d));
 
     // Axes
     mainGroup.append("g")
@@ -130,14 +84,14 @@ export default function WingDiscVsD() {
       .selectAll("text")
       .style("font-size", "12px");
 
-    // Axis labels
+    //Labels
     mainGroup.append("text")
       .attr("x", scatterMargin.left + scatterSize / 2)
       .attr("y", scatterMargin.top + scatterSize + 50)
       .attr("text-anchor", "middle")
       .style("font-size", "16px")
       .style("font-weight", "bold")
-      .text("Normalized Wing Disc Area");
+      .text("Area");
 
     mainGroup.append("text")
       .attr("transform", `rotate(-90)`)
@@ -146,29 +100,64 @@ export default function WingDiscVsD() {
       .attr("text-anchor", "middle")
       .style("font-size", "16px")
       .style("font-weight", "bold")
-      .text("Standard Deviation (D)");
+      .text("Lambda");
     
-    // Title
     mainGroup.append("text")
       .attr("x", scatterMargin.left + scatterSize / 2)
       .attr("y", 40)
       .attr("text-anchor", "middle")
       .style("font-size", "18px")
       .style("font-weight", "bold")
-      .text("Wing Disc vs Standard Deviation");
+      .text("Wing Disc Area vs Lambda");
 
-    // Scatter points
-    mainGroup.selectAll("circle.scatter")
+    // Scatter points with different shapes and tooltips
+    const symbolGenerator = d3.symbol()
+      .size(40); // Size of the symbols
+
+    // Shape mapping for each condition
+    const shapeMap = {
+      standard: d3.symbolCircle,
+      hypoxia: d3.symbolTriangle, 
+      cold: d3.symbolSquare
+    };
+
+    // Get tooltip element
+    const tooltip = d3.select("#tooltip");
+
+    // Create scatter points with different shapes
+    mainGroup.selectAll("path.scatter")
       .data(filteredData)
-      .join("circle")
+      .join("path")
       .attr("class", "scatter")
-      .attr("cx", d => xScale(d.normalizedArea))
-      .attr("cy", d => yScale(d.D))
-      .attr("r", 4)
-      .attr("fill", d => colors[d.condition])
+      .attr("d", d => symbolGenerator.type(shapeMap[d.condition])())
+      .attr("transform", d => `translate(${xScale(d.area)}, ${yScale(d.D)})`)
+      .attr("fill", d => colors[d.condition] || "#999")
       .attr("opacity", 0.7)
       .attr("stroke", "#fff")
-      .attr("stroke-width", 1);
+      .attr("stroke-width", 1)
+    // Tooltip events
+      .on("mouseover", function(event, d) {
+        tooltip
+          .style("opacity", 1)
+          .html(`Disc: ${d.disc}<br>Area: ${d.area.toFixed(2)}<br>Lambda: ${d.D.toFixed(2)}<br>Condition: ${d.condition}`)
+          .style("left", (event.pageX + 10) + "px")
+          .style("top", (event.pageY - 10) + "px");    
+    // Highlight on hover
+        d3.select(this)
+          .attr("opacity", 1)
+          .attr("stroke-width", 2);
+      })
+      .on("mousemove", function(event) {
+        tooltip
+          .style("left", (event.pageX + 10) + "px")
+          .style("top", (event.pageY - 10) + "px");
+      })
+      .on("mouseout", function() {
+        tooltip.style("opacity", 0);
+        d3.select(this)
+          .attr("opacity", 0.7)
+          .attr("stroke-width", 1);
+      });
 
     // Top histogram
     Object.entries(colors).forEach(([condition, color]) => {
@@ -177,7 +166,7 @@ export default function WingDiscVsD() {
       if (subset.length === 0) return;
 
       const bins = d3.bin()
-        .value(d => d.normalizedArea)
+        .value(d => d.area)
         .domain(xScale.domain())
         .thresholds(20)(subset);
 
@@ -237,10 +226,12 @@ export default function WingDiscVsD() {
       .style("font-weight", "bold")
       .text("Condition");
 
-    const legendItems = [
-      { label: "Normoxia", color: colors.Normoxia, checked: true },
-      { label: "Hypoxia", color: colors.Hypoxia, checked: true }
-    ];
+    // Create legend items based on actual conditions in data
+    const conditionsInData = [...new Set(scatterData.map(d => d.condition))];
+    const legendItems = conditionsInData.map(condition => ({
+      label: condition,
+      color: colors[condition] || "#999"
+    }));
 
     legendItems.forEach((item, i) => {
       const g = mainGroup.append("g")
@@ -263,12 +254,10 @@ export default function WingDiscVsD() {
         .attr("stroke", "#333")
         .attr("stroke-width", 2);
 
-      // Color indicator
-      g.append("rect")
-        .attr("x", 5)
-        .attr("y", -8)
-        .attr("width", 20)
-        .attr("height", 12)
+      // Shape indicator (instead of rectangle)
+      g.append("path")
+        .attr("d", symbolGenerator.type(shapeMap[item.label])())
+        .attr("transform", `translate(${5}, ${2})`)
         .attr("fill", item.color)
         .attr("opacity", visibleConditions[item.label] ? 1 : 0.3);
 
@@ -281,11 +270,14 @@ export default function WingDiscVsD() {
         .text(item.label);
     });
 
-
   }, [scatterData, visibleConditions]);
 
   return (
     <div style={{ padding: "20px", backgroundColor: "#fff" }}>
+      <h2>Wing Disc Area vs Standard Deviation (D)</h2>
+      <div style={{ color: "green", marginBottom: "10px" }}>
+        Loaded {scatterData.length} data points
+      </div>
       <svg ref={svgRef} width={1000} height={800} style={{ border: "1px solid #ddd" }}></svg>
       
       {scatterData.length === 0 && (
@@ -296,4 +288,3 @@ export default function WingDiscVsD() {
     </div>
   );
 }
-
