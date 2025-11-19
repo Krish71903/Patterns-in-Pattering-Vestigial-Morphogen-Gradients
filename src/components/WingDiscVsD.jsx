@@ -11,9 +11,9 @@ export default function WingDiscVsD() {
   const svgRef = useRef();
   const [scatterData, setScatterData] = useState([]);
   const [visibleConditions, setVisibleConditions] = useState({
-    Normoxia: true,
-    Hypoxia: true,
-    Cold: true
+    standard: true,
+    hypoxia: true,
+    cold: true
   });
 
   // Load data - SIMPLE AND RELIABLE
