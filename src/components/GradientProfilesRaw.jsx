@@ -1,0 +1,260 @@
+import * as d3 from "d3";
+import React, { useEffect, useRef, useState } from "react";
+
+// raw gradient file
+import mergedRawGradCSV from "../data/mergedRawGrad.csv";
+
+const colors = {
+  Normoxia: "#ff9900",
+  Hypoxia: "#a56cc1",
+  LowTemp: "#4ab8a1"
+};
+
+function mapCondition(raw) {
+  if (!raw) return "Normoxia";
+  const s = raw.toLowerCase();
+  if (s.includes("hypo")) return "Hypoxia";
+  if (s.includes("cold") || s.includes("17c") || s.includes("low")) return "LowTemp";
+  // standard / normoxia / control go here
+  return "Normoxia";
+}
+
+export default function GradientProfilesRaw() {
+  const svgRef = useRef();
+  const [curves, setCurves] = useState([]);          // array of curves (each curve = array of points)
+  const [visibleConditions, setVisibleConditions] = useState({
+    Normoxia: true,
+    Hypoxia: true,
+    LowTemp: true
+  });
+
+  // ---------- load & preprocess data ----------
+  useEffect(() => {
+    d3.csv(mergedRawGradCSV).then(raw => {
+      // group by disc
+      const byDisc = d3.group(raw, d => d.disc);
+      const allCurves = [];
+
+      byDisc.forEach((rows, discId) => {
+        const condLabel = mapCondition(rows[0].condition);
+        const area = +rows[0].area;
+
+        // normalize intensity per disc
+        const maxVal = d3.max(rows, r => +r.value || 0);
+        if (!maxVal || !isFinite(maxVal)) return;
+
+        const curvePoints = rows
+          .map(r => ({
+            disc: discId,
+            condition: condLabel,
+            area,
+            distance: +r.distance,
+            value: (+r.value) / maxVal // relative intensity 0–1
+          }))
+          .filter(p => !isNaN(p.distance) && !isNaN(p.value))
+          .sort((a, b) => a.distance - b.distance);
+
+        if (curvePoints.length > 1) {
+          allCurves.push(curvePoints);
+        }
+      });
+
+      setCurves(allCurves);
+      console.log("Loaded curves:", allCurves.length);
+    }).catch(err => console.error("Error loading mergedRawGrad:", err));
+  }, []);
+
+  // ---------- draw ----------
+  useEffect(() => {
+    if (!curves.length) return;
+
+    const svg = d3.select(svgRef.current);
+    svg.selectAll("*").remove();
+
+    const width = 1000;
+    const height = 800;
+
+    const margin = { top: 80, right: 80, bottom: 70, left: 90 };
+    const plotWidth = 600;
+    const plotHeight = 500;
+
+    const mainGroup = svg.append("g");
+
+    // flatten points for scales
+    const allPoints = curves.flat();
+
+    const xExtent = d3.extent(allPoints, d => d.distance);
+    const xScale = d3.scaleLinear()
+      .domain(xExtent)
+      .nice()
+      .range([margin.left, margin.left + plotWidth]);
+
+    const yScale = d3.scaleLinear()
+      .domain([0, 1]) // relative intensity
+      .range([margin.top + plotHeight, margin.top]);
+
+    // background
+    mainGroup.append("rect")
+      .attr("x", margin.left)
+      .attr("y", margin.top)
+      .attr("width", plotWidth)
+      .attr("height", plotHeight)
+      .attr("fill", "#f0f0f5");
+
+    // grid
+    mainGroup.append("g")
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 1)
+      .selectAll("line.v")
+      .data(xScale.ticks(6))
+      .join("line")
+      .attr("x1", d => xScale(d))
+      .attr("x2", d => xScale(d))
+      .attr("y1", margin.top)
+      .attr("y2", margin.top + plotHeight);
+
+    mainGroup.append("g")
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 1)
+      .selectAll("line.h")
+      .data(yScale.ticks(5))
+      .join("line")
+      .attr("x1", margin.left)
+      .attr("x2", margin.left + plotWidth)
+      .attr("y1", d => yScale(d))
+      .attr("y2", d => yScale(d));
+
+    // axes
+    mainGroup.append("g")
+      .attr("transform", `translate(0,${margin.top + plotHeight})`)
+      .call(d3.axisBottom(xScale).ticks(6))
+      .selectAll("text")
+      .style("font-size", "12px");
+
+    mainGroup.append("g")
+      .attr("transform", `translate(${margin.left},0)`)
+      .call(d3.axisLeft(yScale).ticks(5))
+      .selectAll("text")
+      .style("font-size", "12px");
+
+    // labels
+    mainGroup.append("text")
+      .attr("x", margin.left + plotWidth / 2)
+      .attr("y", margin.top + plotHeight + 50)
+      .attr("text-anchor", "middle")
+      .style("font-size", "16px")
+      .style("font-weight", "bold")
+      .text("Distance along wing");
+
+    mainGroup.append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("x", -(margin.top + plotHeight / 2))
+      .attr("y", margin.left - 60)
+      .attr("text-anchor", "middle")
+      .style("font-size", "16px")
+      .style("font-weight", "bold")
+      .text("Relative intensity");
+
+    // title
+    mainGroup.append("text")
+      .attr("x", margin.left + plotWidth / 2)
+      .attr("y", 40)
+      .attr("text-anchor", "middle")
+      .style("font-size", "18px")
+      .style("font-weight", "bold")
+      .text("Raw Gradient Profiles");
+
+    // filter visible curves
+    const filteredCurves = curves.filter(curve =>
+      visibleConditions[curve[0].condition]
+    );
+
+    // draw curves
+    const lineGen = d3.line()
+      .x(d => xScale(d.distance))
+      .y(d => yScale(d.value))
+      .curve(d3.curveBasis);
+
+    mainGroup.selectAll("path.curve")
+      .data(filteredCurves)
+      .join("path")
+      .attr("class", "curve")
+      .attr("d", d => lineGen(d))
+      .attr("fill", "none")
+      .attr("stroke", d => colors[d[0].condition] || "#999")
+      .attr("stroke-width", 1)
+      .attr("opacity", 0.25);
+
+    // legend
+    const legendX = margin.left + plotWidth + 40;
+    const legendY = margin.top + 40;
+
+    mainGroup.append("text")
+      .attr("x", legendX)
+      .attr("y", legendY - 20)
+      .style("font-size", "16px")
+      .style("font-weight", "bold")
+      .text("Condition");
+
+    const legendItems = [
+      { label: "Normoxia", color: colors.Normoxia },
+      { label: "Hypoxia", color: colors.Hypoxia },
+      { label: "LowTemp", color: colors.LowTemp }
+    ];
+
+    legendItems.forEach((item, i) => {
+      const g = mainGroup.append("g")
+        .attr("transform", `translate(${legendX}, ${legendY + i * 30})`)
+        .style("cursor", "pointer")
+        .on("click", () => {
+          setVisibleConditions(prev => ({
+            ...prev,
+            [item.label]: !prev[item.label]
+          }));
+        });
+
+      // checkbox
+      g.append("rect")
+        .attr("x", -20)
+        .attr("y", -10)
+        .attr("width", 15)
+        .attr("height", 15)
+        .attr("fill", visibleConditions[item.label] ? item.color : "white")
+        .attr("stroke", "#333")
+        .attr("stroke-width", 2);
+
+      // color swatch
+      g.append("rect")
+        .attr("x", 5)
+        .attr("y", -8)
+        .attr("width", 20)
+        .attr("height", 12)
+        .attr("fill", item.color)
+        .attr("opacity", visibleConditions[item.label] ? 1 : 0.3);
+
+      // label
+      g.append("text")
+        .attr("x", 35)
+        .attr("y", 2)
+        .style("font-size", "13px")
+        .style("opacity", visibleConditions[item.label] ? 1 : 0.5)
+        .text(item.label);
+    });
+  }, [curves, visibleConditions]);
+
+  return (
+    <div style={{ padding: "20px", backgroundColor: "#fff" }}>
+      <svg
+        ref={svgRef}
+        width={1000}
+        height={800}
+        style={{ border: "1px solid #ddd" }}
+      ></svg>
+      {!curves.length && (
+        <div style={{ textAlign: "center", marginTop: "20px", color: "#666" }}>
+          Loading gradient profiles...
+        </div>
+      )}
+    </div>
+  );
+}
