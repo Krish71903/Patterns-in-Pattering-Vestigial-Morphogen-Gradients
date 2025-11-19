@@ -2,12 +2,6 @@ import * as d3 from "d3";
 import React, { useEffect, useRef, useState } from "react";
 import ProfileLinePlot from "./ProfileLinePlot";
 
-// Import CSV files
-import normVgHypoNormoCSV from "../data/norm_vghypo-normo.csv";
-import profilesVgNormoxiaCSV from "../data/Profiles_Vg_normoxia.csv";
-import profilesVgHypoxiaCSV from "../data/Profiles_Vg_hypoxia.csv";
-import profilesVg17CCSV from "../data/Profiles_Vg_17C.csv";
-
 const colors = {
   standard: "#d95f02",
   hypoxia: "#7570b3",
@@ -17,11 +11,7 @@ const colors = {
 export default function WingDiscVsD() {
   const svgRef = useRef();
   const [scatterData, setScatterData] = useState([]);
-  const [profileData, setProfileData] = useState({
-    normoxia: [],
-    hypoxia: [],
-    lowTemp: []
-  });
+  const [profileData, setProfileData] = useState([]);
   const [selectedDisc, setSelectedDisc] = useState(null);
   const [selectedDiscInfo, setSelectedDiscInfo] = useState(null);
   const [selectedDiscProfile, setSelectedDiscProfile] = useState([]);
@@ -34,11 +24,11 @@ export default function WingDiscVsD() {
   // Load data - SIMPLE AND RELIABLE
   useEffect(() => {
     Promise.all([
-      d3.csv(normVgHypoNormoCSV),
-      d3.csv(profilesVgNormoxiaCSV),
-      d3.csv(profilesVgHypoxiaCSV),
-      d3.csv(profilesVg17CCSV)
-    ]).then(([paramsData, normoxiaProfiles, hypoxiaProfiles, lowTempProfiles]) => {
+      d3.csv("/data/mergedNormalizedGrad.csv"),
+      d3.csv("/data/mergedRawGrad.csv")
+    ]).then(([csvData, rawData]) => {
+      console.log("CSV loaded successfully!", csvData);
+      
       // Process scatter data
       const processed = csvData.map(d => ({
         disc: d.disc,
@@ -57,22 +47,20 @@ export default function WingDiscVsD() {
       console.log("Conditions found:", [...new Set(processed.map(d => d.condition))]);
       setScatterData(processed);
 
-      // Process profile data
-      const processProfiles = (data) => {
-        return data.map(d => ({
-          disc: d.disc,
-          distance: +d.distance,
-          value: +d.value,
-          area: +d.area
-        }));
-      };
-
-      setProfileData({
-        normoxia: processProfiles(normoxiaProfiles),
-        hypoxia: processProfiles(hypoxiaProfiles),
-        lowTemp: processProfiles(lowTempProfiles)
-      });
-    }).catch(err => console.error("Error loading data:", err));
+      // Process profile data from mergedRawGrad
+      const profiles = rawData.map(d => ({
+        disc: d.disc,  // This matches the disc ID in mergedNormalizedGrad
+        distance: +d.distance,
+        value: +d.value,
+        condition: d.condition
+      }));
+      
+      console.log("Profile data loaded:", profiles.length, "points");
+      setProfileData(profiles);
+      
+    }).catch(err => {
+      console.error("Error loading data:", err);
+    });
   }, []);
 
   useEffect(() => {
@@ -160,32 +148,48 @@ export default function WingDiscVsD() {
       .data(filteredData)
       .join("path")
       .attr("class", "scatter")
-      .attr("cx", d => xScale(d.normalizedArea))
-      .attr("cy", d => yScale(d.D))
-      .attr("r", 4)
-      .attr("fill", d => colors[d.condition])
+      .attr("d", d => symbolGenerator.type(shapeMap[d.condition])())
+      .attr("transform", d => `translate(${xScale(d.area)}, ${yScale(d.D)})`)
+      .attr("fill", d => colors[d.condition] || "#999")
       .attr("opacity", d => selectedDisc === d.disc ? 1 : 0.7)
       .attr("stroke", d => selectedDisc === d.disc ? "#000" : "#fff")
-      .attr("stroke-width", d => selectedDisc === d.disc ? 2 : 1)
+      .attr("stroke-width", d => selectedDisc === d.disc ? 3 : 1)
       .style("cursor", "pointer")
+    // Click event to select disc and show profile
       .on("click", function(event, d) {
+        console.log("Clicked disc ID:", d.disc);
+        
         if (d.disc === selectedDisc) {
+          // Deselect if clicking the same disc
           setSelectedDisc(null);
           setSelectedDiscInfo(null);
           setSelectedDiscProfile([]);
         } else {
+          // Select new disc
           setSelectedDisc(d.disc);
         }
       })
+    // Tooltip events
       .on("mouseover", function(event, d) {
+        tooltip
+          .style("opacity", 1)
+          .html(`Disc: ${d.disc}<br>Area: ${d.area.toFixed(2)}<br>Lambda: ${d.D.toFixed(2)}<br>Condition: ${d.condition}`)
+          .style("left", (event.pageX + 10) + "px")
+          .style("top", (event.pageY - 10) + "px");    
+    // Highlight on hover
         d3.select(this)
-          .attr("r", 6)
+          .attr("opacity", 1)
           .attr("stroke-width", 2);
       })
+      .on("mousemove", function(event) {
+        tooltip
+          .style("left", (event.pageX + 10) + "px")
+          .style("top", (event.pageY - 10) + "px");
+      })
       .on("mouseout", function(event, d) {
+        tooltip.style("opacity", 0);
         d3.select(this)
-          .attr("r", 4)
-          .attr("stroke-width", d.disc === selectedDisc ? 2 : 1);
+          .attr("stroke-width", d.disc === selectedDisc ? 3 : 1);
       });
 
     // Top histogram
@@ -299,26 +303,31 @@ export default function WingDiscVsD() {
         .text(item.label);
     });
 
-
   }, [scatterData, visibleConditions, selectedDisc]);
 
-  // Prepare profile data when disc is selected
+  // When a disc is selected, filter profile data for that disc
   useEffect(() => {
-    if (!selectedDisc || profileData.normoxia.length === 0) {
+    if (!selectedDisc || profileData.length === 0) {
       setSelectedDiscInfo(null);
       setSelectedDiscProfile([]);
       return;
     }
 
-    // Find which condition this disc belongs to
+    // Find the disc info from scatter data
     const discInfo = scatterData.find(d => d.disc === selectedDisc);
-    if (!discInfo) return;
+    if (!discInfo) {
+      console.warn("Could not find disc info for:", selectedDisc);
+      return;
+    }
 
-    const conditionKey = discInfo.condition === "Normoxia" ? "normoxia" : 
-                         discInfo.condition === "Hypoxia" ? "hypoxia" : "lowTemp";
+    // Filter profile data by disc ID
+    const discProfile = profileData.filter(d => d.disc === selectedDisc);
     
-    // Get profile data for this disc
-    const discProfile = profileData[conditionKey].filter(d => d.disc === selectedDisc);
+    console.log(`Found ${discProfile.length} profile points for disc: ${selectedDisc}`);
+    
+    if (discProfile.length === 0) {
+      console.warn("No profile data found for disc:", selectedDisc);
+    }
     
     setSelectedDiscInfo(discInfo);
     setSelectedDiscProfile(discProfile);
@@ -344,6 +353,19 @@ export default function WingDiscVsD() {
           colors={colors}
         />
       )}
+      
+      {/* Tooltip div */}
+      <div id="tooltip" style={{
+        position: "absolute",
+        opacity: 0,
+        background: "white",
+        border: "1px solid #ddd",
+        borderRadius: "4px",
+        padding: "8px",
+        pointerEvents: "none",
+        fontSize: "12px",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+      }}></div>
     </div>
   );
 }
