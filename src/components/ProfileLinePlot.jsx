@@ -61,7 +61,7 @@ export default function ProfileLinePlot({ selectedDisc, discInfo, discProfile, c
       .attr("text-anchor", "middle")
       .style("font-size", "14px")
       .style("font-weight", "bold")
-      .text("Distance");
+      .text("Relative Distance");
 
     g.append("text")
       .attr("transform", "rotate(-90)")
