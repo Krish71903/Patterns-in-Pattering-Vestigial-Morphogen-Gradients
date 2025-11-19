@@ -50,7 +50,7 @@ export default function WingDiscVsD() {
       // Process profile data from mergedRawGrad
       const profiles = rawData.map(d => ({
         disc: d.disc,  // This matches the disc ID in mergedNormalizedGrad
-        distance: +d.distance,
+        distance: +d.relative_distance,  // Using relative_distance instead of distance
         value: +d.value,
         condition: d.condition
       }));
