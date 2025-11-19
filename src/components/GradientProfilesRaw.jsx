@@ -1,7 +1,6 @@
 import * as d3 from "d3";
 import React, { useEffect, useRef, useState } from "react";
 
-// raw gradient file
 import mergedRawGradCSV from "../data/mergedRawGrad.csv";
 
 const colors = {
@@ -14,57 +13,58 @@ function mapCondition(raw) {
   if (!raw) return "Normoxia";
   const s = raw.toLowerCase();
   if (s.includes("hypo")) return "Hypoxia";
-  if (s.includes("cold") || s.includes("17c") || s.includes("low")) return "LowTemp";
-  // standard / normoxia / control go here
+  if (s.includes("cold") || s.includes("17c") || s.includes("low"))
+    return "LowTemp";
   return "Normoxia";
 }
 
-export default function GradientProfilesRaw() {
+export default function GradientProfilesRaw({ selectedDiscIDs = [] }) {
   const svgRef = useRef();
-  const [curves, setCurves] = useState([]);          // array of curves (each curve = array of points)
+  const [curves, setCurves] = useState([]);
   const [visibleConditions, setVisibleConditions] = useState({
     Normoxia: true,
     Hypoxia: true,
     LowTemp: true
   });
 
-  // ---------- load & preprocess data ----------
+  // Load & preprocess
   useEffect(() => {
-    d3.csv(mergedRawGradCSV).then(raw => {
-      // group by disc
-      const byDisc = d3.group(raw, d => d.disc);
-      const allCurves = [];
+    d3.csv(mergedRawGradCSV)
+      .then((raw) => {
+        const byDisc = d3.group(raw, (d) => d.disc);
+        const allCurves = [];
 
-      byDisc.forEach((rows, discId) => {
-        const condLabel = mapCondition(rows[0].condition);
-        const area = +rows[0].area;
+        byDisc.forEach((rows, discId) => {
+          const condLabel = mapCondition(rows[0].condition);
+          const area = +rows[0].area;
 
-        // normalize intensity per disc
-        const maxVal = d3.max(rows, r => +r.value || 0);
-        if (!maxVal || !isFinite(maxVal)) return;
+          const maxVal = d3.max(rows, (r) => +r.value || 0);
+          if (!maxVal || !isFinite(maxVal)) return;
 
-        const curvePoints = rows
-          .map(r => ({
-            disc: discId,
-            condition: condLabel,
-            area,
-            distance: +r.distance,
-            value: (+r.value) / maxVal // relative intensity 0–1
-          }))
-          .filter(p => !isNaN(p.distance) && !isNaN(p.value))
-          .sort((a, b) => a.distance - b.distance);
+          const curvePoints = rows
+            .map((r) => ({
+              disc: discId,
+              condition: condLabel,
+              area,
+              distance: +r.distance,
+              value: +r.value / maxVal
+            }))
+            .filter((p) => !isNaN(p.distance) && !isNaN(p.value))
+            .sort((a, b) => a.distance - b.distance);
 
-        if (curvePoints.length > 1) {
-          allCurves.push(curvePoints);
-        }
-      });
+          if (curvePoints.length > 1) {
+            allCurves.push(curvePoints);
+          }
+        });
 
-      setCurves(allCurves);
-      console.log("Loaded curves:", allCurves.length);
-    }).catch(err => console.error("Error loading mergedRawGrad:", err));
+        setCurves(allCurves);
+        console.log("Loaded curves:", allCurves.length);
+      })
+      .catch((err) =>
+        console.error("Error loading mergedRawGrad in GradientProfilesRaw:", err)
+      );
   }, []);
 
-  // ---------- draw ----------
   useEffect(() => {
     if (!curves.length) return;
 
@@ -80,21 +80,23 @@ export default function GradientProfilesRaw() {
 
     const mainGroup = svg.append("g");
 
-    // flatten points for scales
     const allPoints = curves.flat();
+    const xExtent = d3.extent(allPoints, (d) => d.distance);
 
-    const xExtent = d3.extent(allPoints, d => d.distance);
-    const xScale = d3.scaleLinear()
+    const xScale = d3
+      .scaleLinear()
       .domain(xExtent)
       .nice()
       .range([margin.left, margin.left + plotWidth]);
 
-    const yScale = d3.scaleLinear()
-      .domain([0, 1]) // relative intensity
+    const yScale = d3
+      .scaleLinear()
+      .domain([0, 1])
       .range([margin.top + plotHeight, margin.top]);
 
     // background
-    mainGroup.append("rect")
+    mainGroup
+      .append("rect")
       .attr("x", margin.left)
       .attr("y", margin.top)
       .attr("width", plotWidth)
@@ -102,18 +104,20 @@ export default function GradientProfilesRaw() {
       .attr("fill", "#f0f0f5");
 
     // grid
-    mainGroup.append("g")
+    mainGroup
+      .append("g")
       .attr("stroke", "#fff")
       .attr("stroke-width", 1)
       .selectAll("line.v")
       .data(xScale.ticks(6))
       .join("line")
-      .attr("x1", d => xScale(d))
-      .attr("x2", d => xScale(d))
+      .attr("x1", (d) => xScale(d))
+      .attr("x2", (d) => xScale(d))
       .attr("y1", margin.top)
       .attr("y2", margin.top + plotHeight);
 
-    mainGroup.append("g")
+    mainGroup
+      .append("g")
       .attr("stroke", "#fff")
       .attr("stroke-width", 1)
       .selectAll("line.h")
@@ -121,24 +125,27 @@ export default function GradientProfilesRaw() {
       .join("line")
       .attr("x1", margin.left)
       .attr("x2", margin.left + plotWidth)
-      .attr("y1", d => yScale(d))
-      .attr("y2", d => yScale(d));
+      .attr("y1", (d) => yScale(d))
+      .attr("y2", (d) => yScale(d));
 
     // axes
-    mainGroup.append("g")
+    mainGroup
+      .append("g")
       .attr("transform", `translate(0,${margin.top + plotHeight})`)
       .call(d3.axisBottom(xScale).ticks(6))
       .selectAll("text")
       .style("font-size", "12px");
 
-    mainGroup.append("g")
+    mainGroup
+      .append("g")
       .attr("transform", `translate(${margin.left},0)`)
       .call(d3.axisLeft(yScale).ticks(5))
       .selectAll("text")
       .style("font-size", "12px");
 
     // labels
-    mainGroup.append("text")
+    mainGroup
+      .append("text")
       .attr("x", margin.left + plotWidth / 2)
       .attr("y", margin.top + plotHeight + 50)
       .attr("text-anchor", "middle")
@@ -146,7 +153,8 @@ export default function GradientProfilesRaw() {
       .style("font-weight", "bold")
       .text("Distance along wing");
 
-    mainGroup.append("text")
+    mainGroup
+      .append("text")
       .attr("transform", "rotate(-90)")
       .attr("x", -(margin.top + plotHeight / 2))
       .attr("y", margin.left - 60)
@@ -155,8 +163,8 @@ export default function GradientProfilesRaw() {
       .style("font-weight", "bold")
       .text("Relative intensity");
 
-    // title
-    mainGroup.append("text")
+    mainGroup
+      .append("text")
       .attr("x", margin.left + plotWidth / 2)
       .attr("y", 40)
       .attr("text-anchor", "middle")
@@ -164,32 +172,56 @@ export default function GradientProfilesRaw() {
       .style("font-weight", "bold")
       .text("Raw Gradient Profiles");
 
-    // filter visible curves
-    const filteredCurves = curves.filter(curve =>
+    const visibleCurves = curves.filter((curve) =>
       visibleConditions[curve[0].condition]
     );
 
-    // draw curves
-    const lineGen = d3.line()
-      .x(d => xScale(d.distance))
-      .y(d => yScale(d.value))
+    const lineGen = d3
+      .line()
+      .x((d) => xScale(d.distance))
+      .y((d) => yScale(d.value))
       .curve(d3.curveBasis);
 
-    mainGroup.selectAll("path.curve")
-      .data(filteredCurves)
+    const haveSelection =
+      selectedDiscIDs && selectedDiscIDs.length > 0;
+    const selectedSet = new Set(selectedDiscIDs);
+
+    // --- Background curves (all visible) ---
+    mainGroup
+      .selectAll("path.curve-bg")
+      .data(visibleCurves)
       .join("path")
-      .attr("class", "curve")
-      .attr("d", d => lineGen(d))
+      .attr("class", "curve-bg")
+      .attr("d", (d) => lineGen(d))
       .attr("fill", "none")
-      .attr("stroke", d => colors[d[0].condition] || "#999")
+      .attr("stroke", (d) => colors[d[0].condition] || "#999")
       .attr("stroke-width", 1)
-      .attr("opacity", 0.25);
+      .attr("opacity", haveSelection ? 0.1 : 0.25); // Q2: keep faint background
+
+    // --- Selected curves (bold) ---
+    if (haveSelection) {
+      const selectedCurves = visibleCurves.filter((curve) =>
+        selectedSet.has(curve[0].disc)
+      );
+
+      mainGroup
+        .selectAll("path.curve-selected")
+        .data(selectedCurves)
+        .join("path")
+        .attr("class", "curve-selected")
+        .attr("d", (d) => lineGen(d))
+        .attr("fill", "none")
+        .attr("stroke", (d) => colors[d[0].condition] || "#999")
+        .attr("stroke-width", 2)
+        .attr("opacity", 0.9);
+    }
 
     // legend
     const legendX = margin.left + plotWidth + 40;
     const legendY = margin.top + 40;
 
-    mainGroup.append("text")
+    mainGroup
+      .append("text")
       .attr("x", legendX)
       .attr("y", legendY - 20)
       .style("font-size", "16px")
@@ -203,27 +235,29 @@ export default function GradientProfilesRaw() {
     ];
 
     legendItems.forEach((item, i) => {
-      const g = mainGroup.append("g")
+      const g = mainGroup
+        .append("g")
         .attr("transform", `translate(${legendX}, ${legendY + i * 30})`)
         .style("cursor", "pointer")
         .on("click", () => {
-          setVisibleConditions(prev => ({
+          setVisibleConditions((prev) => ({
             ...prev,
             [item.label]: !prev[item.label]
           }));
         });
 
-      // checkbox
       g.append("rect")
         .attr("x", -20)
         .attr("y", -10)
         .attr("width", 15)
         .attr("height", 15)
-        .attr("fill", visibleConditions[item.label] ? item.color : "white")
+        .attr(
+          "fill",
+          visibleConditions[item.label] ? item.color : "white"
+        )
         .attr("stroke", "#333")
         .attr("stroke-width", 2);
 
-      // color swatch
       g.append("rect")
         .attr("x", 5)
         .attr("y", -8)
@@ -232,7 +266,6 @@ export default function GradientProfilesRaw() {
         .attr("fill", item.color)
         .attr("opacity", visibleConditions[item.label] ? 1 : 0.3);
 
-      // label
       g.append("text")
         .attr("x", 35)
         .attr("y", 2)
@@ -240,7 +273,7 @@ export default function GradientProfilesRaw() {
         .style("opacity", visibleConditions[item.label] ? 1 : 0.5)
         .text(item.label);
     });
-  }, [curves, visibleConditions]);
+  }, [curves, visibleConditions, selectedDiscIDs]);
 
   return (
     <div style={{ padding: "20px", backgroundColor: "#fff" }}>
@@ -249,9 +282,11 @@ export default function GradientProfilesRaw() {
         width={1000}
         height={800}
         style={{ border: "1px solid #ddd" }}
-      ></svg>
+      />
       {!curves.length && (
-        <div style={{ textAlign: "center", marginTop: "20px", color: "#666" }}>
+        <div
+          style={{ textAlign: "center", marginTop: "20px", color: "#666" }}
+        >
           Loading gradient profiles...
         </div>
       )}

@@ -1,25 +1,24 @@
-import GradientProfilesRaw from "./components/GradientProfilesRaw";
+import React, { useState } from "react";
 import WingDiscVsD from "./components/WingDiscVsD";
+import GradientProfilesRaw from "./components/GradientProfilesRaw";
 
 function App() {
+  const [selectedDiscs, setSelectedDiscs] = useState([]);
+
   return (
     <div
       style={{
         display: "flex",
-        flexDirection: "column",    
-        alignItems: "flex-start",   
+        flexDirection: "column",
+        alignItems: "flex-start",
         padding: "40px",
-        gap: "60px"                
+        gap: "40px",
+        background: "#fafafa"
       }}
     >
-      <div style={{ width: "1000px" }}>
-       
-        <WingDiscVsD />
-      </div>
+      <GradientProfilesRaw selectedDiscIDs={selectedDiscs} />
 
-      <div style={{ width: "1000px" }}>
-         <GradientProfilesRaw />
-      </div>
+      <WingDiscVsD onSelectionChange={setSelectedDiscs} />
     </div>
   );
 }
