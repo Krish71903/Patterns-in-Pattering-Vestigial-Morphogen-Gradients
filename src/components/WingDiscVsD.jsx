@@ -2,6 +2,9 @@ import * as d3 from "d3";
 import React, { useEffect, useRef, useState } from "react";
 import ProfileLinePlot from "./ProfileLinePlot";
 
+import mergedNormalizedGradCSV from "../data/mergedNormalizedGrad.csv";
+import mergedRawGradCSV from "../data/mergedRawGrad.csv";
+
 const colors = {
   standard: "#d95f02",
   hypoxia: "#7570b3",
@@ -28,8 +31,8 @@ export default function WingDiscVsD({ onSelectionChange = () => {} }) {
   // ------------------------------------------------------------
   useEffect(() => {
     Promise.all([
-      d3.csv("/data/mergedNormalizedGrad.csv"),
-      d3.csv("/data/mergedRawGrad.csv")
+      d3.csv(mergedNormalizedGradCSV),
+      d3.csv(mergedRawGradCSV)
     ])
       .then(([csvData, rawData]) => {
         console.log("CSV loaded successfully!", csvData);

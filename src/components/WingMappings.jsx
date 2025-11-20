@@ -1,7 +1,7 @@
 import * as d3 from "d3";
 import React, { useEffect, useRef, useState } from "react";
 
-import mergedRawGradCSV from "../data/mergedWingCoords.csv";
+import mergedWingCoordsCSV from "../data/mergedWingCoords.csv";
 
 const colors = {
   standard: "#d95f02",
@@ -29,7 +29,7 @@ export default function WingCoordinates() {
 
   // Load data
   useEffect(() => {
-    d3.csv("/data/mergedWingCoords.csv").then(csvData => {
+    d3.csv(mergedWingCoordsCSV).then(csvData => {
       console.log("Wing coordinates loaded:", csvData.length);
       
       const processed = csvData.map(row => {
