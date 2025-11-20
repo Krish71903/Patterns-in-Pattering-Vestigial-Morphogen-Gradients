@@ -46,11 +46,11 @@ export default function GradientProfilesRaw({ selectedDiscIDs = [] }) {
               disc: discId,
               condition: condLabel,
               area,
-              distance: +r.distance,
+              relativedistance: +r.relativedistance,
               value: +r.value / maxVal
             }))
-            .filter((p) => !isNaN(p.distance) && !isNaN(p.value))
-            .sort((a, b) => a.distance - b.distance);
+            .filter((p) => !isNaN(p.relativedistance) && !isNaN(p.value))
+            .sort((a, b) => a.relativedistance - b.relativedistance);
 
           if (curvePoints.length > 1) {
             allCurves.push(curvePoints);
@@ -81,7 +81,7 @@ export default function GradientProfilesRaw({ selectedDiscIDs = [] }) {
     const mainGroup = svg.append("g");
 
     const allPoints = curves.flat();
-    const xExtent = d3.extent(allPoints, (d) => d.distance);
+    const xExtent = d3.extent(allPoints, (d) => d.relativedistance);
 
     const xScale = d3
       .scaleLinear()
@@ -129,7 +129,7 @@ export default function GradientProfilesRaw({ selectedDiscIDs = [] }) {
       .attr("text-anchor", "middle")
       .style("font-size", "16px")
       .style("font-weight", "bold")
-      .text("Distance along wing");
+      .text("Distance Relative to Peak");
 
     mainGroup
       .append("text")
@@ -148,7 +148,7 @@ export default function GradientProfilesRaw({ selectedDiscIDs = [] }) {
       .attr("text-anchor", "middle")
       .style("font-size", "18px")
       .style("font-weight", "bold")
-      .text("Raw Gradient Profiles");
+      .text("Gradient Profiles");
 
     const visibleCurves = curves.filter((curve) =>
       visibleConditions[curve[0].condition]
@@ -156,7 +156,7 @@ export default function GradientProfilesRaw({ selectedDiscIDs = [] }) {
 
     const lineGen = d3
       .line()
-      .x((d) => xScale(d.distance))
+      .x((d) => xScale(d.relativedistance))
       .y((d) => yScale(d.value))
       .curve(d3.curveBasis);
 
