@@ -237,7 +237,7 @@ export default function GradientProfilesRaw({ selectedDiscIDs = [] }) {
         .attr("stroke-width", 2);
 
       g.append("text")
-        .attr("x", 35)
+        .attr("x", 3)
         .attr("y", 2)
         .style("font-size", "13px")
         .style("opacity", visibleConditions[item.label] ? 1 : 0.5)
