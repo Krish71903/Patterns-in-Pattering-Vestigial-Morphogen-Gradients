@@ -12,14 +12,27 @@ function App() {
         display: "flex",
         flexDirection: "column",
         alignItems: "flex-start",
-        padding: "40px",
-        gap: "40px",
+        padding: "10px",
+        gap: "10px",
         background: "#fafafa"
       }}
     >
+     <div style={{
+        width: "100%",
+        padding: "15px",
+        background: "#f8f9fa",
+        border: "1px solid #dee2e6",
+        borderRadius: "5px"
+      }}>
+        <p style={{ margin: 0, fontSize: "16px", lineHeight: "1.4" }}>
+          Thank you for testing our interface! Please:<br />
+          Find the profiles of wing discs with area between <strong>100,000-150,000 µm²</strong>.<br />
+          Map the wing morphology of a wing from a fly raised under <strong>cold</strong> conditions.
+        </p>
+      </div>
 
-        <GradientProfilesRaw selectedDiscIDs={selectedDiscs} />
         <WingDiscVsD onSelectionChange={setSelectedDiscs} />
+        <GradientProfilesRaw selectedDiscIDs={selectedDiscs} />
         <WingMappings />
     </div>
   );
