@@ -1,0 +1,17 @@
+{
+  "files": {
+    "main.css": "/Patterns-in-Pattering-Vestigial-Morphogen-Gradients/static/css/main.e6c13ad2.css",
+    "main.js": "/Patterns-in-Pattering-Vestigial-Morphogen-Gradients/static/js/main.871b1ab6.js",
+    "static/js/787.26dded59.chunk.js": "/Patterns-in-Pattering-Vestigial-Morphogen-Gradients/static/js/787.26dded59.chunk.js",
+    "static/media/mergedRawGrad.csv": "/Patterns-in-Pattering-Vestigial-Morphogen-Gradients/static/media/mergedRawGrad.f0787fbf15d86fbd4a50.csv",
+    "static/media/mergedWingCoords.csv": "/Patterns-in-Pattering-Vestigial-Morphogen-Gradients/static/media/mergedWingCoords.ad863667e7dfd51c2513.csv",
+    "index.html": "/Patterns-in-Pattering-Vestigial-Morphogen-Gradients/index.html",
+    "main.e6c13ad2.css.map": "/Patterns-in-Pattering-Vestigial-Morphogen-Gradients/static/css/main.e6c13ad2.css.map",
+    "main.871b1ab6.js.map": "/Patterns-in-Pattering-Vestigial-Morphogen-Gradients/static/js/main.871b1ab6.js.map",
+    "787.26dded59.chunk.js.map": "/Patterns-in-Pattering-Vestigial-Morphogen-Gradients/static/js/787.26dded59.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.e6c13ad2.css",
+    "static/js/main.871b1ab6.js"
+  ]
+}
